@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-shellcheck"
+version = "0.1.0"
+description = "ShellCheck MCP Server for AI code analysis"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "ev3lynx727"}
+]
+keywords = ["mcp", "shellcheck", "shell", "linting", "code-analysis", "ai", "claude", "opencode"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Ev3lynx727/mcp-shellcheck"
+Repository = "https://github.com/Ev3lynx727/mcp-shellcheck"
+Issues = "https://github.com/Ev3lynx727/mcp-shellcheck/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+shellcheck-mcp-server = "shellcheck_mcp_server:main_sync"
+
+[tool.setuptools]
+py-modules = ["shellcheck_mcp_server"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shellcheck_mcp_server*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

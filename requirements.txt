@@ -1,0 +1,7 @@
+# ShellCheck MCP Server Dependencies
+
+# MCP Server SDK
+mcp>=1.0.0
+
+# Python version
+python>=3.10
