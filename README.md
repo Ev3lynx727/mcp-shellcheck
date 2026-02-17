@@ -73,13 +73,13 @@ uv run --with mcp python3 shellcheck_mcp_server.py
 
 ### Option 4: From GitHub Release
 
-After creating a GitHub release, you can use uvx directly from the release:
+After creating a GitHub release, you can use uvx directly from the wheel file:
 
 ```bash
-uvx --from https://github.com/Ev3lynx727/mcp-shellcheck/releases/latest shellcheck-mcp-server
+uvx --from https://github.com/Ev3lynx727/mcp-shellcheck/releases/download/v0.1.0/mcp_shellcheck-0.1.0-py3-none-any.whl shellcheck-mcp-server
 ```
 
-Note: This requires publishing the package to GitHub releases first.
+Note: Replace the version number in the URL with your desired version.
 
 ## OpenCode Configuration
 
