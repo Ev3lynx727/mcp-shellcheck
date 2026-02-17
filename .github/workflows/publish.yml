@@ -8,8 +8,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
     steps:
       - uses: actions/checkout@v4
       
@@ -22,10 +20,11 @@ jobs:
         run: uv build
       
       - name: Publish to PyPI
-        run: uv publish
+        if: github.event_name == 'release'
+        run: uv publish --token ${{ secrets.PYPI_API_TOKEN }}
       
-      - name: Publish to Test PyPI (optional)
+      - name: Publish to Test PyPI
         if: github.event_name == 'workflow_dispatch'
-        run: uv publish --test
+        run: uv publish --test --token ${{ secrets.TEST_PYPI_API_TOKEN }}
         env:
           UV_HTTP_TIMEOUT: 120
