@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-shellcheck"
-version = "0.1.0"
+version = "0.1.2"
 description = "ShellCheck MCP Server for AI code analysis"
 readme = "README.md"
 license = {text = "MIT"}

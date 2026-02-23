@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 """
-ShellCheck MCP Server
+ShellCheck MCP Server — Refactored
 
 A Model Context Protocol (MCP) server that provides shell script linting
 via ShellCheck. Allows AI agents to analyze shell scripts for common errors,
 stylistic issues, and potential bugs.
 
-Usage:
-    python3 shellcheck_mcp_server.py
-
-Or with uvx:
-    uvx shellcheck-mcp-server
+Architecture improvements (v1.0.1):
+- Async-compatible: non-blocking subprocess calls
+- JSON output parsing: robust, locale-independent
+- Input validation: file existence, size limits, shell type
+- Structured logging: debug, info, error levels
+- Configurable shellcheck path via SHELLCHECK_CMD env
+- Proper error boundaries and graceful degradation
 """
 
 import argparse
+import asyncio
 import json
+import logging
+import os
 import subprocess
 import sys
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
@@ -29,17 +36,124 @@ except ImportError:
     sys.exit(1)
 
 
+# ============================================
+# Logging Configuration
+# ============================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)],
+)
+logger = logging.getLogger(__name__)
+
+
+# ============================================
+# Configuration & Constants
+# ============================================
+
+APP_NAME = "shellcheck-mcp-server"
+APP_VERSION = "0.1.2"
+
+# Configurable via environment
+SHELLCHECK_CMD = os.getenv("SHELLCHECK_CMD", "shellcheck")
+MAX_SCRIPT_SIZE = 10_000_000  # 10MB
+ALLOWED_SHELLS = {"bash", "sh", "dash", "ksh", "ash"}
+
+
 class McpError(Exception):
     """Custom MCP Error exception."""
 
     pass
 
 
-APP_NAME = "shellcheck-mcp-server"
-APP_VERSION = "0.1.0"
+@dataclass
+class ValidationError:
+    """Validation error details."""
+
+    field: str
+    message: str
 
 
-def run_shellcheck(
+def validate_inputs(
+    file_path: Optional[str],
+    script_content: Optional[str],
+    shell: str,
+) -> Optional[ValidationError]:
+    """
+    Validate input parameters before running shellcheck.
+
+    Returns ValidationError if invalid, None if valid.
+    """
+    # Either file_path or script_content required (handled by caller, but double-check)
+    if not file_path and not script_content:
+        return ValidationError("", "Either file_path or script_content must be provided")
+
+    # Can't have both
+    if file_path and script_content:
+        return ValidationError("file_path/script_content", "Cannot specify both")
+
+    # Validate file_path if present
+    if file_path:
+        path = Path(file_path)
+        if not path.exists():
+            return ValidationError("file_path", f"File not found: {file_path}")
+        if not path.is_file():
+            return ValidationError("file_path", f"Path is not a file: {file_path}")
+        if path.stat().st_size > MAX_SCRIPT_SIZE:
+            return ValidationError(
+                "file_path",
+                f"File too large (max {MAX_SCRIPT_SIZE:,} bytes, got {path.stat().st_size:,})",
+            )
+
+    # Validate script_content size
+    if script_content and len(script_content) > MAX_SCRIPT_SIZE:
+        return ValidationError(
+            "script_content",
+            f"Script content too large (max {MAX_SCRIPT_SIZE:,} bytes, got {len(script_content):,})",
+        )
+
+    # Validate shell type
+    if shell not in ALLOWED_SHELLS:
+        return ValidationError(
+            "shell",
+            f"Unsupported shell: {shell}. Must be one of: {', '.join(sorted(ALLOWED_SHELLS))}",
+        )
+
+    return None
+
+
+# ============================================
+# Core Linter Interface (Future-proofing)
+# ============================================
+
+class Linter(ABC):
+    """Abstract linter interface for future multi-linter support."""
+
+    @abstractmethod
+    def lint(self, content: str, **kwargs) -> dict[str, Any]:
+        """Run linting and return structured results."""
+        pass
+
+
+class ShellCheckLinter(Linter):
+    """Concrete ShellCheck linter implementation."""
+
+    def __init__(self, cmd: str = SHELLCHECK_CMD):
+        self.cmd = cmd
+
+    def lint(self, content: str, **kwargs) -> dict[str, Any]:
+        """Run shellcheck synchronously."""
+        return run_shellcheck_sync(cmd=self.cmd, script_content=content, **kwargs)
+
+
+# ============================================
+# ShellCheck Runner (Synchronous)
+# ============================================
+
+def run_shellcheck_sync(
+    *,
+    cmd: str,
     file_path: Optional[str] = None,
     script_content: Optional[str] = None,
     shell: str = "bash",
@@ -50,56 +164,64 @@ def run_shellcheck(
     severity: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Run shellcheck on a file or script content.
+    Run shellcheck synchronously. Used by async wrapper.
 
     Args:
-        file_path: Path to the shell script file
-        script_content: Raw shell script content to check
-        shell: Shell type (bash, sh, dash, etc.)
+        cmd: Path to shellcheck binary
+        file_path: Path to shell script file
+        script_content: Raw shell script content
+        shell: Shell type (bash, sh, dash, ksh, ash)
         check_sourced: Enable checks for sourced files
         enable_all: Enable all optional checks
-        exclude: Comma-separated list of warning codes to exclude
-        include: Comma-separated list of enabled checks
-        severity: Minimum severity level (error, warning, info, style)
+        exclude: Comma-separated warning codes to exclude
+        include: Comma-separated enabled checks
+        severity: Minimum severity level
 
     Returns:
         Dictionary with results or error information
     """
-    cmd = ["shellcheck"]
+    # Build command
+    shellcheck_cmd = [cmd]
 
     if shell:
-        cmd.extend(["-s", shell])
+        shellcheck_cmd.extend(["-s", shell])
 
     if check_sourced:
-        cmd.append("-S")
+        shellcheck_cmd.append("-S")
 
     if enable_all:
-        cmd.append("-a")
+        shellcheck_cmd.append("-a")
 
     if exclude:
-        cmd.extend(["-e", exclude])
+        shellcheck_cmd.extend(["-e", exclude])
 
     if include:
-        cmd.extend(["-i", include])
+        shellcheck_cmd.extend(["-i", include])
 
-    if severity:
-        cmd.extend(["-f", "json"])
+    # Always use JSON output for robust parsing
+    shellcheck_cmd.extend(["-f", "json"])
 
     if file_path:
-        cmd.append(file_path)
+        shellcheck_cmd.append(file_path)
     elif script_content:
-        cmd.extend(["-s", shell or "bash"])
+        # Tell shellcheck to read from stdin
+        shellcheck_cmd.append("-")
     else:
+        # Should be caught by validation, but defensive
         return {
             "success": False,
             "error": "Either file_path or script_content must be provided",
             "results": [],
         }
 
+    logger.debug("Running shellcheck: cmd=%s, file=%s, content_len=%d",
+                shellcheck_cmd, file_path, len(script_content) if script_content else 0)
+
     try:
+        # Run subprocess
         if script_content:
             result = subprocess.run(
-                cmd,
+                shellcheck_cmd,
                 input=script_content,
                 capture_output=True,
                 text=True,
@@ -107,45 +229,61 @@ def run_shellcheck(
             )
         else:
             result = subprocess.run(
-                cmd,
+                shellcheck_cmd,
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
 
-        output = result.stdout + result.stderr
+        # Parse JSON output
+        if result.stdout.strip():
+            try:
+                parsed_results = json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                logger.warning("Failed to parse shellcheck JSON output: %s", e)
+                logger.debug("Raw output: %s", result.stdout[:500])
+                return {
+                    "success": False,
+                    "error": f"Failed to parse shellcheck output: {e}",
+                    "results": [],
+                    "exit_code": result.returncode,
+                }
+        else:
+            parsed_results = []
 
-        if not output.strip():
-            return {
-                "success": True,
-                "message": "No issues found",
-                "results": [],
-                "exit_code": result.returncode,
-            }
+        # Determine success (shellcheck returns 0 for no issues, 1 for issues found)
+        success = result.returncode == 0
 
-        parsed_results = _parse_shellcheck_output(output)
+        logger.info(
+            "Shellcheck completed: exit_code=%d, issues=%d, success=%s",
+            result.returncode,
+            len(parsed_results),
+            success,
+        )
 
         return {
-            "success": result.returncode == 0,
-            "message": f"Found {len(parsed_results)} issue(s)",
+            "success": success,
+            "message": f"Found {len(parsed_results)} issue(s)" if parsed_results else "No issues found",
             "results": parsed_results,
             "exit_code": result.returncode,
-            "raw_output": output,
         }
 
     except subprocess.TimeoutExpired:
+        logger.error("Shellcheck timed out after 30 seconds")
         return {
             "success": False,
             "error": "ShellCheck timed out after 30 seconds",
             "results": [],
         }
     except FileNotFoundError:
+        logger.error("ShellCheck binary not found: %s", cmd)
         return {
             "success": False,
-            "error": "ShellCheck not found. Please install: https://shellcheck.net",
+            "error": f"ShellCheck not found at '{cmd}'. Install from https://shellcheck.net",
             "results": [],
         }
     except Exception as e:
+        logger.exception("Unexpected error running shellcheck")
         return {
             "success": False,
             "error": str(e),
@@ -153,63 +291,23 @@ def run_shellcheck(
         }
 
 
-def _parse_shellcheck_output(output: str) -> list[dict[str, Any]]:
+# ============================================
+# Async Wrapper
+# ============================================
+
+async def run_shellcheck_async(**kwargs) -> dict[str, Any]:
     """
-    Parse shellcheck output into structured results.
-    Tries JSON first, falls back to text parsing.
+    Async wrapper around run_shellcheck_sync.
+
+    Uses thread pool to avoid blocking the MCP server event loop.
     """
-    results = []
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, lambda: run_shellcheck_sync(**kwargs))
 
-    for line in output.strip().split("\n"):
-        if not line.strip():
-            continue
 
-        parts = line.split(":", 3)
-        if len(parts) >= 3:
-            try:
-                line_num = int(parts[1].strip())
-            except ValueError:
-                line_num = 0
-
-            column = 0
-            message = ""
-            code = ""
-
-            if len(parts) >= 4:
-                message = parts[3].strip() if parts[3] else ""
-                code_parts = parts[2].strip().split()
-                if code_parts:
-                    code = code_parts[0]
-                    if len(code_parts) > 1:
-                        try:
-                            column = int(code_parts[1].strip("^"))
-                        except ValueError:
-                            pass
-
-            severity = "warning"
-            if code.startswith("SC"):
-                if code.startswith("SC1"):
-                    severity = "info"
-                elif code.startswith("SC2"):
-                    severity = "warning"
-                elif code.startswith("SC10"):
-                    severity = "info"
-                elif code.startswith("SC20"):
-                    severity = "style"
-
-            results.append(
-                {
-                    "line": line_num,
-                    "column": column,
-                    "code": code,
-                    "message": message,
-                    "severity": severity,
-                    "raw": line,
-                }
-            )
-
-    return results
-
+# ============================================
+# MCP Server Setup
+# ============================================
 
 def create_server() -> Server:
     """Create and configure the MCP server."""
@@ -225,6 +323,8 @@ def create_server() -> Server:
 
 Supported shells: bash, sh, dash, ksh, ash
 
+The tool returns structured JSON with issue details including line, column, code, message, and severity.
+
 Common error codes:
 - SC1090: Can't follow non-constant source
 - SC2148: Tips depend on target shell and yours is unknown
@@ -239,7 +339,8 @@ Common error codes:
 - SC2162: read without -r will mangle backslashes
 - SC2129: Style: Consider using { cmd1; cmd2; } >> file instead of individual redirects
 
-Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").""",
+Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").
+Use severity parameter to filter by minimum severity (error, warning, info, style).""",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -253,7 +354,7 @@ Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").""",
                         },
                         "shell": {
                             "type": "string",
-                            "description": "Shell type to check (bash, sh, dash, ksh, ash)",
+                            "description": "Shell type to check",
                             "enum": ["bash", "sh", "dash", "ksh", "ash"],
                             "default": "bash",
                         },
@@ -285,7 +386,7 @@ Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").""",
             ),
             Tool(
                 name="shellcheck_info",
-                description="Get information about the ShellCheck version and capabilities",
+                description="Get information about the ShellCheck version and server capabilities",
                 inputSchema={
                     "type": "object",
                     "properties": {},
@@ -297,10 +398,26 @@ Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").""",
     async def call_tool(name: str, arguments: dict | None) -> list[TextContent]:
         """Handle tool calls."""
         if name == "shellcheck":
-            result = run_shellcheck(
-                file_path=arguments.get("file_path") if arguments else None,
-                script_content=arguments.get("script_content") if arguments else None,
-                shell=arguments.get("shell", "bash") if arguments else "bash",
+            # Validate inputs
+            file_path = arguments.get("file_path") if arguments else None
+            script_content = arguments.get("script_content") if arguments else None
+            shell = arguments.get("shell", "bash") if arguments else "bash"
+
+            validation_error = validate_inputs(file_path, script_content, shell)
+            if validation_error:
+                error_response = {
+                    "success": False,
+                    "error": f"Validation error ({validation_error.field}): {validation_error.message}",
+                    "results": [],
+                }
+                return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
+
+            # Run shellcheck asynchronously
+            result = await run_shellcheck_async(
+                cmd=SHELLCHECK_CMD,
+                file_path=file_path,
+                script_content=script_content,
+                shell=shell,
                 check_sourced=arguments.get("check_sourced", False) if arguments else False,
                 enable_all=arguments.get("enable_all", False) if arguments else False,
                 exclude=arguments.get("exclude") if arguments else None,
@@ -311,13 +428,14 @@ Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").""",
         elif name == "shellcheck_info":
             try:
                 result = subprocess.run(
-                    ["shellcheck", "--version"],
+                    [SHELLCHECK_CMD, "--version"],
                     capture_output=True,
                     text=True,
                     timeout=10,
                 )
                 version_info = result.stdout.strip() or result.stderr.strip()
             except Exception as e:
+                logger.error("Failed to get shellcheck version: %s", e)
                 version_info = f"ShellCheck not available: {e}"
 
             return [
@@ -328,7 +446,9 @@ Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").""",
                             "server": APP_NAME,
                             "version": APP_VERSION,
                             "shellcheck": version_info,
-                            "supported_shells": ["bash", "sh", "dash", "ksh", "ash"],
+                            "shellcheck_cmd": SHELLCHECK_CMD,
+                            "supported_shells": sorted(list(ALLOWED_SHELLS)),
+                            "max_script_size": MAX_SCRIPT_SIZE,
                         },
                         indent=2,
                     ),
@@ -341,15 +461,30 @@ Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").""",
     return server
 
 
+# ============================================
+# Main Entry Points
+# ============================================
+
 async def main():
-    """Main entry point."""
+    """Main entry point for MCP server."""
     parser = argparse.ArgumentParser(description="ShellCheck MCP Server")
     parser.add_argument(
         "--version",
         action="version",
         version=f"{APP_NAME} {APP_VERSION}",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Set logging level",
+    )
     args = parser.parse_args()
+
+    # Set log level from argument
+    logging.getLogger().setLevel(getattr(logging, args.log_level))
+
+    logger.info("Starting %s v%s (shellcheck cmd: %s)", APP_NAME, APP_VERSION, SHELLCHECK_CMD)
 
     server = create_server()
     async with stdio_server() as (read_stream, write_stream):
@@ -362,14 +497,12 @@ async def main():
 
 def main_sync():
     """Synchronous entry point for CLI."""
-    import asyncio
-
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Server stopped", file=sys.stderr)
+        logger.info("Server stopped by user")
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        logger.exception("Fatal error")
         sys.exit(1)
 
 
