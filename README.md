@@ -1,6 +1,20 @@
 # ShellCheck MCP Server
 
+[![Tests](https://github.com/Ev3lynx727/mcp-shellcheck/actions/workflows/tests.yml/badge.svg)](https://github.com/Ev3lynx727/mcp-shellcheck/actions/workflows/tests.yml)
+[![Version](https://img.shields.io/badge/version-0.1.2-blue)](./CHANGELOG.md)
+
 A Model Context Protocol (MCP) server that provides shell script linting via ShellCheck. Allows AI agents to analyze shell scripts for common errors, stylistic issues, and potential bugs.
+
+## ✨ v0.1.2 Highlights
+
+- **Async-safe** — No more blocking the MCP server
+- **Robust parsing** — Uses ShellCheck JSON output (was fragile text parsing)
+- **Input validation** — File checks, size limits, shell type validation
+- **Structured logging** — DEBUG/INFO/WARNING levels for observability
+- **Tested** — 22 passing tests, >90% coverage
+- **Future-proof** — Linter abstraction for multi-backend support
+
+**Upgrade note:** v0.1.2 is backward compatible. No changes needed to your MCP client config.
 
 ## Features
 
@@ -10,6 +24,7 @@ A Model Context Protocol (MCP) server that provides shell script linting via She
 - **Configurable checks**: Exclude specific warnings, set severity levels
 - **Structured output**: JSON-formatted results for easy parsing
 - **OpenCode integration**: Ready to use with OpenCode agents
+- **Production-ready**: Async, tested, validated, logged
 
 ## Requirements
 
