@@ -30,7 +30,7 @@ from typing import Any, Optional
 try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
-    from mcp.types import Tool, TextContent
+    from mcp.types import TextContent, Tool
 except ImportError:
     print("Error: mcp package not installed. Run: pip install mcp", file=sys.stderr)
     sys.exit(1)
@@ -501,7 +501,7 @@ def main_sync():
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
-    except Exception as e:
+    except Exception:
         logger.exception("Fatal error")
         sys.exit(1)
 
