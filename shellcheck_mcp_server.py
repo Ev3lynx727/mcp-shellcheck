@@ -378,10 +378,6 @@ Use severity parameter to filter by minimum severity (error, warning, info, styl
                             "enum": ["error", "warning", "info", "style"],
                         },
                     },
-                    "oneOf": [
-                        {"required": ["file_path"]},
-                        {"required": ["script_content"]},
-                    ],
                 },
             ),
             Tool(
