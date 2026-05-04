@@ -187,16 +187,19 @@ def run_shellcheck_sync(
         shellcheck_cmd.extend(["-s", shell])
 
     if check_sourced:
-        shellcheck_cmd.append("-S")
+        shellcheck_cmd.append("-a")  # --check-sourced
 
     if enable_all:
-        shellcheck_cmd.append("-a")
+        shellcheck_cmd.extend(["-o", "all"])  # --enable=all
 
     if exclude:
         shellcheck_cmd.extend(["-e", exclude])
 
     if include:
         shellcheck_cmd.extend(["-i", include])
+
+    if severity:
+        shellcheck_cmd.extend(["-S", severity])  # --severity=SEVERITY
 
     # Always use JSON output for robust parsing
     shellcheck_cmd.extend(["-f", "json"])
