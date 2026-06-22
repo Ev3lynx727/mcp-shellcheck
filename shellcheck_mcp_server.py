@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # ============================================
 
 APP_NAME = "shellcheck-mcp-server"
-APP_VERSION = "0.1.2"
+APP_VERSION = "0.1.3"
 
 # Configurable via environment
 SHELLCHECK_CMD = os.getenv("SHELLCHECK_CMD", "shellcheck")
@@ -420,6 +420,7 @@ Use severity parameter to filter by minimum severity (error, warning, info, styl
                 check_sourced=arguments.get("check_sourced", False) if arguments else False,
                 enable_all=arguments.get("enable_all", False) if arguments else False,
                 exclude=arguments.get("exclude") if arguments else None,
+                include=arguments.get("include") if arguments else None,
                 severity=arguments.get("severity") if arguments else None,
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]

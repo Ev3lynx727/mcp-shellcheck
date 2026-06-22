@@ -1,20 +1,21 @@
 # ShellCheck MCP Server
 
 [![Tests](https://github.com/Ev3lynx727/mcp-shellcheck/actions/workflows/tests.yml/badge.svg)](https://github.com/Ev3lynx727/mcp-shellcheck/actions/workflows/tests.yml)
-[![Version](https://img.shields.io/badge/version-0.1.2-blue)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.3-blue)](./CHANGELOG.md)
 
 A Model Context Protocol (MCP) server that provides shell script linting via ShellCheck. Allows AI agents to analyze shell scripts for common errors, stylistic issues, and potential bugs.
 
-## ✨ v0.1.2 Highlights
+## ✨ v0.1.3 Highlights
 
+- **Anthropic API compatible** — `input_schema` no longer uses `oneOf` (was causing 400 errors on Claude Desktop / Claude Code)
+- **Fixed CLI flags** — `check_sourced`, `enable_all`, and `severity` now pass the correct ShellCheck arguments (`-a`, `-o all`, `-S`)
 - **Async-safe** — No more blocking the MCP server
 - **Robust parsing** — Uses ShellCheck JSON output (was fragile text parsing)
 - **Input validation** — File checks, size limits, shell type validation
 - **Structured logging** — DEBUG/INFO/WARNING levels for observability
 - **Tested** — 22 passing tests, >90% coverage
-- **Future-proof** — Linter abstraction for multi-backend support
 
-**Upgrade note:** v0.1.2 is backward compatible. No changes needed to your MCP client config.
+**Upgrade note:** v0.1.3 is backward compatible. No changes needed to your MCP client config.
 
 ## Features
 
@@ -33,6 +34,16 @@ A Model Context Protocol (MCP) server that provides shell script linting via She
 
 ### Installing ShellCheck
 
+**Recommended (always latest):**
+
+```bash
+pip install shellcheck-py
+```
+
+The `shellcheck-py` package provides a pre-built shellcheck v0.11.0 binary on your PATH with no system dependencies.
+
+**System package managers (may ship older versions):**
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get install shellcheck
@@ -45,12 +56,6 @@ sudo dnf install ShellCheck
 
 # Arch Linux
 sudo pacman -S shellcheck
-
-# From source
-git clone https://github.com/koalaman/shellcheck.git
-cd shellcheck
-cabal build
-sudo cabal install
 ```
 
 ## Installation
@@ -58,8 +63,7 @@ sudo cabal install
 ### Option 1: Clone and Install
 
 ```bash
-cd /home/ev3lynx/Project/local-mcp-server
-git clone https://github.com/your-repo/mcp-shellcheck.git
+git clone https://github.com/Ev3lynx727/mcp-shellcheck.git
 cd mcp-shellcheck
 pip install -e .
 ```
@@ -88,19 +92,13 @@ uv run --with mcp python3 shellcheck_mcp_server.py
 
 ### Option 4: From GitHub Release
 
-After creating a GitHub release, you can use uvx directly from the wheel file:
-
 ```bash
-uvx --from https://github.com/Ev3lynx727/mcp-shellcheck/releases/download/v0.1.0/mcp_shellcheck-0.1.0-py3-none-any.whl shellcheck-mcp-server
+uvx --from https://github.com/Ev3lynx727/mcp-shellcheck/releases/download/v0.1.3/mcp_shellcheck-0.1.3-py3-none-any.whl shellcheck-mcp-server
 ```
-
-Note: Replace the version number in the URL with your desired version.
 
 ## OpenCode Configuration
 
 ### Recommended: Using uv run
-
-Add or update the shellcheck MCP server configuration:
 
 ```jsonc
 {
@@ -112,7 +110,7 @@ Add or update the shellcheck MCP server configuration:
         "run",
         "--with", "mcp",
         "python3",
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
+        "/path/to/mcp-shellcheck/shellcheck_mcp_server.py"
       ],
       "enabled": true,
       "timeout": 60000
@@ -130,7 +128,7 @@ Add or update the shellcheck MCP server configuration:
       "type": "local",
       "command": [
         "python3",
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
+        "/path/to/mcp-shellcheck/shellcheck_mcp_server.py"
       ],
       "enabled": true,
       "timeout": 60000
@@ -168,9 +166,12 @@ Check a shell script file or content for issues.
 | `check_sourced` | boolean | No | Enable checks for sourced files (default: false) |
 | `enable_all` | boolean | No | Enable all optional checks (default: false) |
 | `exclude` | string | No | Comma-separated codes to exclude (e.g., "SC1090,SC2148") |
+| `include` | string | No | Comma-separated codes to include (e.g., "SC2086,SC2164") |
 | `severity` | string | No | Minimum severity: error, warning, info, style |
 
 *Either `file_path` or `script_content` must be provided.
+
+> **Note:** This MCP server is compatible with all major MCP clients — including Claude Desktop, Claude Code, Cursor, VS Code with Copilot, and OpenCode. The `input_schema` avoids `oneOf`/`allOf`/`anyOf` at the top level for full Anthropic API compatibility.
 
 #### `shellcheck_info` Tool
 
@@ -292,7 +293,7 @@ shellcheck -e SC1090,SC2148 -s bash script.sh
   "mcpServers": {
     "shellcheck": {
       "command": "python3",
-      "args": ["/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
@@ -320,7 +321,7 @@ Add to `.vscode/mcp.json`:
   "servers": {
     "shellcheck": {
       "command": "python3",
-      "args": ["/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
@@ -426,6 +427,19 @@ uv publish --test
 # Set up token
 uv publish --token your-api-token
 ```
+
+## Contributing
+
+Contributions are welcome! This project follows a standard GitHub fork + PR workflow:
+
+1. Fork the repo
+2. Create a feature branch (`git checkout -b feature/your-change`)
+3. Make your changes and run tests (`pytest`)
+4. Lint with ruff (`ruff check .`)
+5. Commit with a descriptive message
+6. Push and open a Pull Request
+
+Found a bug or have a feature request? Open an [issue](https://github.com/Ev3lynx727/mcp-shellcheck/issues).
 
 ## License
 

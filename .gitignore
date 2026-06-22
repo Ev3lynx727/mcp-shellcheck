@@ -13,3 +13,6 @@ build/
 *.log
 .env
 .env.local
+.pyscn/
+# Added by Ghostclaw
+.ghostclaw/
