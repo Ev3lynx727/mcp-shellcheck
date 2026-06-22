@@ -94,6 +94,22 @@ class TestRunShellcheckSync:
         with patch('subprocess.run') as mock:
             yield mock
 
+    def _argv_for(self, mock_subprocess, **kwargs):
+        """Run the sync runner with a clean mock and return the argv shellcheck was invoked with."""
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+
+        run_shellcheck_sync(
+            cmd="shellcheck",
+            script_content="echo test",
+            shell="bash",
+            **kwargs,
+        )
+        return mock_subprocess.call_args[0][0]
+
     def test_successful_check_returns_results(self, mock_subprocess):
         """Successful shellcheck returns parsed JSON results."""
         # Mock shellcheck output with typical JSON format
@@ -241,6 +257,49 @@ class TestRunShellcheckSync:
         called_cmd = mock_subprocess.call_args[0][0]
         assert "-e" in called_cmd
         assert "SC1090,SC2148" in called_cmd
+
+    def test_check_sourced_maps_to_a_flag(self, mock_subprocess):
+        """check_sourced=True maps to -a (--check-sourced), not -S.
+
+        Regression guard: before PR #3 this appended a bare -S, which
+        consumed the next argv item as a severity value.
+        """
+        argv = self._argv_for(mock_subprocess, check_sourced=True)
+        assert "-a" in argv
+        assert "-S" not in argv  # old bug appended -S here
+
+    def test_enable_all_maps_to_o_all(self, mock_subprocess):
+        """enable_all=True maps to `-o all` (--enable=all), not -a.
+
+        Regression guard: before PR #3 this appended -a (--check-sourced),
+        the opposite of "enable all optional checks".
+        """
+        argv = self._argv_for(mock_subprocess, enable_all=True)
+        assert "-o" in argv
+        assert argv[argv.index("-o") + 1] == "all"
+        assert "-a" not in argv  # old bug appended -a here
+
+    def test_severity_maps_to_S_flag(self, mock_subprocess):
+        """severity maps to `-S <level>` (--severity).
+
+        Regression guard: the parameter was wired through the schema but
+        silently dropped before reaching argv until PR #3.
+        """
+        argv = self._argv_for(mock_subprocess, severity="warning")
+        assert "-S" in argv
+        assert argv[argv.index("-S") + 1] == "warning"
+
+    def test_include_maps_to_i_flag(self, mock_subprocess):
+        """include maps to `-i <codes>` (--include)."""
+        argv = self._argv_for(mock_subprocess, include="SC2086,SC2046")
+        assert "-i" in argv
+        assert argv[argv.index("-i") + 1] == "SC2086,SC2046"
+
+    def test_no_optional_flags_by_default(self, mock_subprocess):
+        """With no optional params, none of the optional flags leak into argv."""
+        argv = self._argv_for(mock_subprocess)
+        for flag in ("-a", "-o", "-e", "-i", "-S"):
+            assert flag not in argv
 
     def test_json_format_always_used(self, mock_subprocess):
         """ShellCheck is always called with -f json."""
