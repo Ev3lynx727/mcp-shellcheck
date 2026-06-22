@@ -1,4 +1,4 @@
-# Architecture: mcp-shellcheck v1.0.1
+# Architecture: mcp-shellcheck v0.1.3
 
 **Design Philosophy:** Simple adapter with robust error handling, async-aware, and future-extensible.
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-`mcp-shellcheck` is a Model Context Protocol (MCP) server that wraps the ShellCheck CLI tool, providing shell script linting as a service for AI agents (Claude Desktop, Cursor, VS Code, etc.).
+`mcp-shellcheck` is a Model Context Protocol (MCP) server that wraps the ShellCheck CLI tool, providing shell script linting as a service for AI agents (Claude Desktop, Claude Code, Cursor, VS Code, OpenCode).
 
 **Core Principle:** One responsibility, done well — lint shell scripts via ShellCheck, nothing more.
 
@@ -45,7 +45,7 @@
        │
        ▼
 ┌─────────────┐
-│ ShellCheck  │ (system binary)
+│ ShellCheck  │ (binary, v0.11.0 recommended)
 └─────────────┘
 ```
 
@@ -79,7 +79,7 @@
 - ShellCheck's JSON is well-defined
 
 **Before (v0.1.0):** Fragile text parsing by splitting on `:`  
-**After (v1.0.1):** Robust `json.loads()`
+**After (v0.1.2):** Robust `json.loads()`
 
 ### 3. Input Validation Layer
 
@@ -97,17 +97,15 @@
 - Avoid shellcheck errors that are hard to debug
 - Security: don't pass arbitrary paths without checking
 
-### 4. Decoupled Linter Interface
+### 4. Single-File Server (Not Modular)
 
-**Decision:** Abstract `Linter` class, even though only ShellCheck exists today.
+**Decision:** Single `shellcheck_mcp_server.py` file, not split across modules.
 
 **Rationale:**
-- Future-proof: could support `shfmt`, `bashate`, `beautysh`
-- Dependency injection for testing
-- Clear separation: MCP server ←→ linter backend
-- Easy to add multi-linter aggregation later
-
-**Not over-engineered:** Simple abstract base, one concrete implementation.
+- Server is small enough (~500 lines) that module overhead hurts more than it helps
+- Easy to deploy -- copy one file
+- No package needed for basic use
+- Can modularize if complexity grows
 
 ### 5. Logging Strategy
 
@@ -123,7 +121,7 @@
 - Observability in production
 - Debuggability when things go wrong
 - MCP clients can capture stderr for diagnostics
-- Configurable via `--log-level`
+- Configurable via `LOG_LEVEL` env var
 
 ---
 
@@ -133,7 +131,7 @@
 MCP Request (JSON)
         │
         ▼
-call_tool("shellcheck", {file_path="/path/to/script.sh", shell="bash"})
+call_tool("shellcheck", {script_content="...", shell="bash", severity="warning"})
         │
         ▼
 validate_inputs() ──if invalid─→ error response
@@ -144,10 +142,13 @@ run_shellcheck_async()  (thread pool)
         ▼
 run_shellcheck_sync()
         │
-        ├── build cmd: ["shellcheck", "-s", "bash", "-f", "json", "/path/to/script.sh"]
-        ├── subprocess.run(cmd, capture_output=True, timeout=30)
-        ├── parse JSON from stdout
+        ├── build argv: ["shellcheck", "-s", "bash", "-f", "json", "-S", "warning", "-"]
+        ├── subprocess.run(input=script_content, capture_output=True, timeout=30)
+        ├── json.loads(stdout) ──if parse fail─→ error response
         └── return {success, message, results, exit_code}
+        │
+        ▼
+json.dumps(result, indent=2) wrapped in TextContent
         │
         ▼
 JSON response to MCP client
@@ -161,8 +162,8 @@ JSON response to MCP client
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SHELLCHECK_CMD` | `"shellcheck"` | Override shellcheck binary path (e.g., `/usr/local/bin/shellcheck`) |
-| (none for log level) | `INFO` | Set via `--log-level` argument |
+| `SHELLCHECK_CMD` | `"shellcheck"` | Override shellcheck binary path |
+| `LOG_LEVEL` | `"INFO"` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 
 ### Command-Line Arguments
 
@@ -179,12 +180,31 @@ python3 shellcheck_mcp_server.py --log-level DEBUG
 | `validate_inputs()` | Guard against bad inputs (files, sizes, shells) |
 | `run_shellcheck_sync()` | Synchronous shellcheck invocation with JSON parsing |
 | `run_shellcheck_async()` | Thread pool wrapper for async compatibility |
-| `Linter` (ABC) | Abstract interface for linting backends |
-| `ShellCheckLinter` | Concrete ShellCheck implementation |
-| `create_server()` | MCP server setup, tool definitions, tool routing |
-| `list_tools()` | MCP capability advertisement |
-| `call_tool()` | Request dispatcher, error boundaries |
+| `create_server()` | MCP server setup, tool definitions, error boundaries |
 | `main()` / `main_sync()` | Entry points with arg parsing |
+
+---
+
+## Tool Schema
+
+### shellcheck
+
+| Parameter | Type | Required | Default | Flag |
+|-----------|------|----------|---------|------|
+| `file_path` | string | no\* | -- | path arg |
+| `script_content` | string | no\* | -- | stdin input |
+| `shell` | string | no | `"bash"` | `-s` |
+| `check_sourced` | boolean | no | `false` | `-a` |
+| `enable_all` | boolean | no | `false` | `-o all` |
+| `exclude` | string | no | -- | `-e` |
+| `include` | string | no | -- | `-i` |
+| `severity` | string | no | -- | `-S` |
+
+> **Resolved:** `include` is now fully wired from `call_tool` through to shellcheck.
+
+### shellcheck_info
+
+Returns: server version, shellcheck version, supported shells, max script size.
 
 ---
 
@@ -195,7 +215,7 @@ python3 shellcheck_mcp_server.py --log-level DEBUG
 | Validation | Return error response before subprocess |
 | Timeout | Catch `subprocess.TimeoutExpired`, return error |
 | Binary not found | Catch `FileNotFoundError`, return helpful message |
-| JSON parse error | Log warning, return error (but include raw if possible) |
+| JSON parse error | Log warning, return error response |
 | Unexpected exception | Log stack trace, return generic error |
 
 **Philosophy:** Never crash the server. Always return JSON error response.
@@ -204,29 +224,26 @@ python3 shellcheck_mcp_server.py --log-level DEBUG
 
 ## Performance Considerations
 
-- **Timeouts:** 30 seconds per shellcheck call (configurable would be nice)
-- **Caching:** Not implemented (future: `@lru_cache` on file mtime + hash)
-- **Concurrency:** Thread pool allows concurrent requests (limited by GIL but okay for I/O)
-- **Memory:** Script content copied into subprocess stdin; 10MB limit prevents abuse
+- **Timeouts:** 30 seconds per shellcheck call
+- **Concurrency:** Thread pool allows concurrent requests (GIL-limited but fine for I/O)
+- **Memory:** Script content piped to subprocess stdin; 10MB limit prevents abuse
+- **JSON load:** Entire ShellCheck output loaded into memory (`json.loads`). Tested to 10K issues (~2.8MB JSON)
 
 ---
 
-## Testing Strategy
+## Testing
 
-### Unit Tests (37+ tests planned)
+### Unit Tests (35 tests)
 - Input validation (all edge cases)
-- Command building (flags, JSON format)
-- JSON parsing (various shellcheck outputs)
+- Command building (flags, JSON format, severity, check_sourced, enable_all)
+- JSON parsing (large output, unicode, malformed, control chars, escape roundtrips)
 - Error handling (timeout, not found, invalid JSON)
-- Async wrapper (thread pool usage)
-- Constants (version format, allowed shells)
+- Async wrapper (thread pool delegation)
 
 ### Integration Tests
-- Real shellcheck on simple script
-- Real shellcheck on problematic script
-- End-to-end with actual binary
-
-**Coverage Goal:** >90% of core logic.
+- Real shellcheck on simple scripts
+- Real shellcheck on 6,000-line generated scripts
+- Full roundtrip: result dict -> json.dumps -> json.loads
 
 ---
 
@@ -239,25 +256,31 @@ python3 shellcheck_mcp_server.py --log-level DEBUG
 - No logging
 - No tests
 
-### v1.0.1 (This Release)
+### v0.1.2 (Async + Robustness)
 - Async-compatible via thread pool
 - JSON output parsing (robust)
 - Comprehensive input validation
 - Structured logging
 - 22 passing tests
-- Linter abstraction (future-proof)
 - Decent documentation
+
+### v0.1.3 (Current)
+- `oneOf` removed from inputSchema (Anthropic API 400 fix)
+- ShellCheck flags corrected (`-S`->`-a`, `-a`->`-o all`, added `severity`->`-S`)
+- `include` parameter now fully wired from `call_tool`
+- 35 passing tests (22 original + 13 stress: JSON large output + escape roundtrips)
+- shellcheck upgraded from system 0.8.0 to `shellcheck-py` 0.11.0
+- First external contributor (@iav) merged 2 bugfix PRs
+- Python 3.10 pinned via `.python-version`
+- `mcp>=1.0.0,<2` pin to avoid SDK v2 breaking change (targets 2026-07-27)
 
 ---
 
-## Open Questions (Future Work)
+## Future Work
 
-1. **Caching:** How to invalidate? File mtime + content hash? TTL?
-2. **Config file:** Where to put user defaults (shell, exclude list)?
-3. **Progress feedback:** Can we stream results for large scripts?
-4. **Multiple linters:** How to combine results? Prioritize?
-5. **Rich output:** Should we return fix suggestions from shellcheck?
-6. **Security:** Sandboxing? Run shellcheck in container?
+1. **SDK v2 migration** (2026-07-27): stateful to stateless refactor
+2. **Progress feedback:** Stream results for large scripts
+3. **Caching:** File mtime + content hash eviction
 
 ---
 
@@ -265,8 +288,3 @@ python3 shellcheck_mcp_server.py --log-level DEBUG
 
 - [MCP Specification](https://github.com/modelcontextprotocol/specification)
 - [ShellCheck Manual](https://www.shellcheck.net/)
-- [Python asyncio.run_in_executor](https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.run_in_executor)
-
----
-
-**Maintainer Philosophy:** Keep it simple, test it thoroughly, fail gracefully. 🧠

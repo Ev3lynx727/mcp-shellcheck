@@ -2,11 +2,21 @@
 
 This document contains example configurations for various MCP clients.
 
+## Usage Notes
+
+Before using these examples:
+
+- Replace `/path/to/mcp-shellcheck` with your actual clone path
+- Ensure `shellcheck` is installed: `pip install shellcheck-py` (v0.11.0) or system package
+- Requires Python >=3.10 and `mcp>=1.0.0,<2`
+
+---
+
 ## OpenCode
 
-### Basic Configuration
-
 Add to `~/.config/opencode/opencode.jsonc`:
+
+### Recommended: uvx with local path
 
 ```jsonc
 {
@@ -14,8 +24,10 @@ Add to `~/.config/opencode/opencode.jsonc`:
     "shellcheck": {
       "type": "local",
       "command": [
-        "python3",
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
+        "uvx",
+        "--from",
+        "/path/to/mcp-shellcheck",
+        "shellcheck-mcp-server"
       ],
       "enabled": true,
       "timeout": 60000
@@ -24,20 +36,25 @@ Add to `~/.config/opencode/opencode.jsonc`:
 }
 ```
 
-### With uvx
+### Direct Python (requires mcp installed)
 
 ```jsonc
 {
   "mcp": {
     "shellcheck": {
       "type": "local",
-      "command": ["uvx", "shellcheck-mcp-server"],
+      "command": [
+        "python3",
+        "/path/to/mcp-shellcheck/shellcheck_mcp_server.py"
+      ],
       "enabled": true,
       "timeout": 60000
     }
   }
 }
 ```
+
+---
 
 ## Claude Desktop
 
@@ -50,9 +67,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "shellcheck": {
       "command": "python3",
-      "args": [
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
-      ]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
@@ -67,13 +82,13 @@ Add to `~/.config/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "shellcheck": {
       "command": "python3",
-      "args": [
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
-      ]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
 ```
+
+---
 
 ## Cursor
 
@@ -86,13 +101,13 @@ Add to `~/Library/Application Support/Cursor/User/globalStorage/mcp.json`:
   "mcpServers": {
     "shellcheck": {
       "command": "python3",
-      "args": [
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
-      ]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
 ```
+
+---
 
 ## VS Code with Copilot Chat
 
@@ -103,13 +118,13 @@ Create or update `.vscode/mcp.json` in your project:
   "servers": {
     "shellcheck": {
       "command": "python3",
-      "args": [
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
-      ]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
 ```
+
+---
 
 ## Cline (VS Code Extension)
 
@@ -120,13 +135,13 @@ Add to `~/.cline/mcp_settings.json`:
   "mcpServers": {
     "shellcheck": {
       "command": "python3",
-      "args": [
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
-      ]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
 ```
+
+---
 
 ## LM Studio
 
@@ -137,68 +152,59 @@ Add to your LM Studio MCP settings:
   "mcpServers": {
     "shellcheck": {
       "command": "python3",
-      "args": [
-        "/home/ev3lynx/Project/local-mcp-server/mcp-shellcheck/shellcheck_mcp_server.py"
-      ]
+      "args": ["/path/to/mcp-shellcheck/shellcheck_mcp_server.py"]
     }
   }
 }
 ```
 
-## Docker-based (Alternative)
-
-If you prefer Docker-based isolation:
-
-```jsonc
-{
-  "mcp": {
-    "shellcheck": {
-      "type": "local",
-      "command": [
-        "docker",
-        "run",
-        "--rm",
-        "-i",
-        "--network=none",
-        "python:3.11-slim",
-        "python3",
-        "-c",
-        "import sys; print(sys.stdin.read())"
-      ],
-      "enabled": true,
-      "timeout": 60000
-    }
-  }
-}
-```
+---
 
 ## Environment Variables
 
-No environment variables are required. However, you can pass custom environment:
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SHELLCHECK_CMD` | `"shellcheck"` | Override shellcheck binary path |
 
 ```jsonc
 {
   "mcp": {
     "shellcheck": {
       "type": "local",
-      "command": ["python3", "shellcheck_mcp_server.py"],
+      "command": ["python3", "/path/to/mcp-shellcheck/shellcheck_mcp_server.py"],
       "environment": {
-        "SHELLCHECK_PATH": "/usr/local/bin/shellcheck"
+        "SHELLCHECK_CMD": "/path/to/shellcheck"
       }
     }
   }
 }
 ```
 
-## Advanced: Custom ShellCheck Options
+---
 
-Pass custom ShellCheck options via the tool parameters:
+## Tool Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `file_path` | string | No* | — | Path to script file |
+| `script_content` | string | No* | — | Raw script text |
+| `shell` | string | No | `"bash"` | One of: bash, sh, dash, ksh, ash |
+| `check_sourced` | boolean | No | `false` | `-a` — include warnings from sourced files |
+| `enable_all` | boolean | No | `false` | `-o all` — enable all optional checks |
+| `exclude` | string | No | — | Comma-separated codes to exclude (e.g., "SC1090,SC2148") |
+| `include` | string | No | — | Comma-separated codes to include |
+| `severity` | string | No | — | Minimum severity: error, warning, info, style |
+
+*Either `file_path` or `script_content` must be provided, but not both.
+
+### Example tool call
 
 ```json
 {
   "file_path": "/path/to/script.sh",
   "shell": "bash",
   "exclude": "SC1090,SC2148",
-  "severity": "warning"
+  "severity": "warning",
+  "enable_all": true
 }
 ```

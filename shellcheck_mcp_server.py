@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # ============================================
 
 APP_NAME = "shellcheck-mcp-server"
-APP_VERSION = "0.1.2"
+APP_VERSION = "0.1.3"
 
 # Configurable via environment
 SHELLCHECK_CMD = os.getenv("SHELLCHECK_CMD", "shellcheck")
@@ -187,16 +187,19 @@ def run_shellcheck_sync(
         shellcheck_cmd.extend(["-s", shell])
 
     if check_sourced:
-        shellcheck_cmd.append("-S")
+        shellcheck_cmd.append("-a")
 
     if enable_all:
-        shellcheck_cmd.append("-a")
+        shellcheck_cmd.extend(["-o", "all"])
 
     if exclude:
         shellcheck_cmd.extend(["-e", exclude])
 
     if include:
         shellcheck_cmd.extend(["-i", include])
+
+    if severity:
+        shellcheck_cmd.extend(["-S", severity])
 
     # Always use JSON output for robust parsing
     shellcheck_cmd.extend(["-f", "json"])
@@ -378,10 +381,6 @@ Use severity parameter to filter by minimum severity (error, warning, info, styl
                             "enum": ["error", "warning", "info", "style"],
                         },
                     },
-                    "oneOf": [
-                        {"required": ["file_path"]},
-                        {"required": ["script_content"]},
-                    ],
                 },
             ),
             Tool(
@@ -421,6 +420,7 @@ Use severity parameter to filter by minimum severity (error, warning, info, styl
                 check_sourced=arguments.get("check_sourced", False) if arguments else False,
                 enable_all=arguments.get("enable_all", False) if arguments else False,
                 exclude=arguments.get("exclude") if arguments else None,
+                include=arguments.get("include") if arguments else None,
                 severity=arguments.get("severity") if arguments else None,
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
