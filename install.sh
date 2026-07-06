@@ -16,9 +16,17 @@ echo "  Installing shellcheck CLI binary..."
 $PYTHON -m pip install shellcheck-py -q
 
 if ! command -v shellcheck &>/dev/null; then
-  echo "  Warning: 'shellcheck' not found on PATH." >&2
-  echo "  Try: export PATH=\"\$HOME/.local/bin:\$PATH\"" >&2
-  echo "  Or install system-wide: sudo apt install shellcheck" >&2
+  USER_BIN=$($PYTHON -m site --user-base 2>/dev/null)/bin
+  if [ -x "$USER_BIN/shellcheck" ]; then
+    export PATH="$USER_BIN:$PATH"
+    echo "  Located at $USER_BIN/shellcheck"
+    echo "  To make permanent, add to your shell rc:"
+    echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+  else
+    echo "  Warning: shellcheck binary not found." >&2
+    echo "  Try: sudo apt install shellcheck  # Ubuntu/Debian" >&2
+    echo "  Try: brew install shellcheck      # macOS" >&2
+  fi
 fi
 
 echo "  Installing mcp-shellcheck..."
