@@ -11,7 +11,7 @@ license = {text = "MIT"}
 authors = [
     {name = "ev3lynx727"}
 ]
-keywords = ["mcp", "shellcheck", "shell", "linting", "code-analysis", "ai", "claude", "opencode"]
+keywords = ["mcp", "mcp-server", "shellcheck", "shell", "linting", "code-analysis", "ai", "claude", "opencode"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -63,6 +63,13 @@ ignore = ["E501"]
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+[tool.semantic_release]
+version_variable = "shellcheck_mcp_server.py:__version__"
+build_command = "uv build"
+dist_path = "dist/"
+upload_to_pypi = true
+upload_to_release = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
