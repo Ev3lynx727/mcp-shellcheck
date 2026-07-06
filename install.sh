@@ -12,13 +12,16 @@ if [ -z "$PYTHON" ]; then
   exit 1
 fi
 
-echo "  Checking ShellCheck..."
+echo "  Installing shellcheck CLI binary..."
+$PYTHON -m pip install shellcheck-py -q
+
 if ! command -v shellcheck &>/dev/null; then
-  echo "  Installing shellcheck-py..."
-  $PYTHON -m pip install shellcheck-py -q 2>/dev/null || true
+  echo "  Warning: 'shellcheck' not found on PATH." >&2
+  echo "  Try: export PATH=\"\$HOME/.local/bin:\$PATH\"" >&2
+  echo "  Or install system-wide: sudo apt install shellcheck" >&2
 fi
 
-echo "  Downloading mcp-shellcheck..."
+echo "  Installing mcp-shellcheck..."
 TMPDIR=$(mktemp -d)
 cd "$TMPDIR" || exit 1
 curl -fsSL "https://github.com/${REPO}/archive/main.tar.gz" | tar xz --strip=1
