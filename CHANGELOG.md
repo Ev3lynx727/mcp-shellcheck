@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-02-24
+
+### Added
+- **include param support** — `include` parameter wired from `call_tool` to `run_shellcheck_sync`
+- **Stress tests** — Tests for concurrent/parallel shellcheck calls
+- **Install script** — `curl -fsSL ... | sh` one-liner install with auto shellcheck binary provisioning
+
+### Changed
+- **Code cleanup** — Reordered imports, simplified exception handling in `run_shellcheck_sync`
+- **Tool descriptions** — Enhanced with selection signals (Use when / Prefer over / Avoid when)
+
+### Fixed
+- **CLI flag mapping** — `check_sourced`, `enable_all`, `severity` now pass correct ShellCheck arguments
+
+---
+
 ## [0.1.2] - 2025-02-23
 
 ### Added
