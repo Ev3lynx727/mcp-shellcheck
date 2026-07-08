@@ -282,7 +282,7 @@ pytest
 ruff check .
 ```
 
-See [CHANGELOG.md](./CHANGELOG.md) for release history and [ARCHITECTURE.md](./ARCHITECTURE.md) for design docs.
+See [CHANGELOG.md](./CHANGELOG.md) for release history and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for design docs.
 
 ## License
 
