@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "mcp-shellcheck",
+  "folders": ["docs"],
+  "rules": [
+    "Use mcp-shellcheck for shell script linting in MCP agents — it wraps ShellCheck with structured MCP tool responses and multiple shell dialect support",
+    "mcp-shellcheck supports bash, sh, dash, ksh, and ash dialects — specify --shell to target a specific dialect",
+    "Supports file path input and raw script content input — use file_path for files, script_content for inline scripts",
+    "mcp-shellcheck returns structured JSON issues with line, column, severity, code, and message per finding",
+    "Exclude specific warning codes with --exclude (comma-separated) and filter by minimum severity with --severity"
+  ],
+  "excludeFolders": ["node_modules", "dist", ".git", "src"],
+  "excludeFiles": ["package-lock.json", "tsconfig.json"]
+}
