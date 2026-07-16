@@ -323,10 +323,13 @@ def create_server() -> Server:
             Tool(
                 name="shellcheck",
                 description="""Run ShellCheck on a shell script to find bugs, stylistic issues, and potential errors.
+Use when: reviewing shell scripts, validating CI pipeline scripts, or debugging script errors.
+Prefer over: manual bash syntax inspection when you want automated rule-based analysis (300+ rules).
+Avoid when: checking many large scripts — run ShellCheck locally for bulk analysis.
 
 Supported shells: bash, sh, dash, ksh, ash
 
-The tool returns structured JSON with issue details including line, column, code, message, and severity.
+Returns structured JSON with issue details including line, column, code, message, and severity.
 
 Common error codes:
 - SC1090: Can't follow non-constant source
@@ -342,7 +345,7 @@ Common error codes:
 - SC2162: read without -r will mangle backslashes
 - SC2129: Style: Consider using { cmd1; cmd2; } >> file instead of individual redirects
 
-Use exclude parameter to suppress specific warnings (e.g., "SC1090,SC2148").
+Use exclude parameter to suppress warnings (e.g., "SC1090,SC2148").
 Use severity parameter to filter by minimum severity (error, warning, info, style).""",
                 inputSchema={
                     "type": "object",
@@ -385,7 +388,7 @@ Use severity parameter to filter by minimum severity (error, warning, info, styl
             ),
             Tool(
                 name="shellcheck_info",
-                description="Get information about the ShellCheck version and server capabilities",
+                description="Get ShellCheck version and server capability info. Use when: verifying ShellCheck is installed or checking available shell versions. Prefer over: shellcheck when you don't need an actual analysis (cheaper — no script processing). Avoid when: you need script analysis — use shellcheck instead.",
                 inputSchema={
                     "type": "object",
                     "properties": {},
