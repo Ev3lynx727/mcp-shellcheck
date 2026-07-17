@@ -7,7 +7,7 @@ name = "mcp-shellcheck"
 version = "0.2.0"
 description = "ShellCheck MCP Server for AI code analysis"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "ev3lynx727"}
 ]
@@ -15,7 +15,6 @@ keywords = ["mcp", "mcp-server", "shellcheck", "shell", "linting", "code-analysi
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
