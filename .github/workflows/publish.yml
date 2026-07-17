@@ -20,7 +20,7 @@ jobs:
         run: uv build
 
       - name: Publish to Test PyPI
-        run: uv publish --test --token ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: uv publish --publish-url https://test.pypi.org/legacy/ --token ${{ secrets.TEST_PYPI_API_TOKEN }}
         env:
           UV_HTTP_TIMEOUT: 120
 
