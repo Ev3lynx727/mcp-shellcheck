@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-17
+
+### Changed
+- **Docs restructured** — Moved `.md` files to `docs/` for Context7 discoverability
+- **CHANGELOG dates** — Fixed year references (2025 → 2026)
+
+---
+
 ## [0.1.3] - 2026-06-22
 
 ### Added
@@ -83,3 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sandboxed execution (containerize shellcheck)
 - Multi-linter aggregation (shellcheck + shfmt + bashate)
 - Results streaming for large outputs
+
+[0.2.0]: https://github.com/ev3lynx727/mcp-shellcheck/releases/tag/v0.2.0
+[0.1.3]: https://github.com/ev3lynx727/mcp-shellcheck/releases/tag/v0.1.3
+[0.1.2]: https://github.com/ev3lynx727/mcp-shellcheck/releases/tag/v0.1.2
+[0.1.0]: https://github.com/ev3lynx727/mcp-shellcheck/releases/tag/v0.1.0
